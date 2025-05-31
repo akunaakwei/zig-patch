@@ -1,0 +1,18 @@
+.{
+    .name = .patch,
+    .version = "2.6.1",
+    .fingerprint = 0xe22b963639638da6,
+    .minimum_zig_version = "0.14.0",
+    .dependencies = .{
+        .patch = .{
+            .url = "http://mirror.netcologne.de/gnu/patch/patch-2.6.1.tar.gz",
+            .hash = "N-V-__8AAJPSEgDcozcxiSvegfkjtNmn6GcEB8wT_c3xq86P",
+        },
+    },
+    .paths = .{
+        "PatchStep.zig",
+        "build.zig",
+        "build.zig.zon",
+        "LICENSE",
+    },
+}
