@@ -10,12 +10,14 @@ patch_exe: *Step.Compile,
 root_directory: LazyPath,
 generated_directory: GeneratedFile,
 patch_files: std.ArrayList(LazyPath),
+strip: u32,
 
 pub const Options = struct {
     root_directory: LazyPath,
     patch_dep_name: []const u8 = "patch",
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
+    strip: u32 = 0,
 };
 
 pub fn create(b: *std.Build, options: Options) *PatchStep {
@@ -39,6 +41,7 @@ pub fn create(b: *std.Build, options: Options) *PatchStep {
         .root_directory = root_directory,
         .generated_directory = .{ .step = &patch.step },
         .patch_files = patch_files,
+        .strip = options.strip,
     };
     root_directory.addStepDependencies(&patch.step);
     patch.step.dependOn(&patch_exe.step);
@@ -54,7 +57,6 @@ pub fn addPatch(patch: *PatchStep, file: LazyPath) void {
 }
 
 fn make(step: *Step, options: Step.MakeOptions) !void {
-    std.debug.print("calling make step", .{});
     const b = step.owner;
     const patch: *PatchStep = @fieldParentPtr("step", step);
 
@@ -62,9 +64,10 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     const exe_path = b.pathResolve(&.{ exe_cache_path.root_dir.path orelse ".", exe_cache_path.sub_path });
 
     const root_path = patch.root_directory.getPath3(b, step);
-    var root_directory = root_path.openDir(root_path.subPathOrDot(), .{ .iterate = true }) catch |err| {
+    var root_directory = root_path.openDir(".", .{ .iterate = true }) catch |err| {
+        const abs_path = root_path.toString(b.allocator) catch @panic("OOM");
         return step.fail("unable to open directory '{s}': {s}", .{
-            root_path.subPathOrDot(), @errorName(err),
+            abs_path, @errorName(err),
         });
     };
 
@@ -147,7 +150,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
 
         try argv_list.append(exe_path);
         try argv_list.append("--strip");
-        try argv_list.append("1");
+        try argv_list.append(b.fmt("{d}", .{patch.strip}));
         try argv_list.append("--quiet");
         try argv_list.append("--no-backup-if-mismatch");
         if (patch.patch_exe.rootModuleTarget().os.tag == .windows) {
