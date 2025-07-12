@@ -267,7 +267,7 @@ pub fn build(b: *std.Build) void {
         },
         .flags = flags.items,
     });
-    gl.root_module.sanitize_c = false;
+    gl.root_module.sanitize_c = .off;
 
     const patch = b.addExecutable(.{
         .name = "patch",
