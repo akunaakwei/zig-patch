@@ -173,8 +173,14 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
         child.stdout_behavior = .Ignore;
         child.stderr_behavior = .Ignore;
 
-        try child.spawn();
-        _ = try child.wait();
+        child.spawn() catch |err| {
+            return step.fail("unable to spawn patch process {s}: {s}", .{
+                exe_path, @errorName(err),
+            });
+        };
+        _ = child.wait() catch |err| {
+            return step.fail("patch process failed: {s}", .{@errorName(err)});
+        };
         options.progress_node.setCompletedItems(1);
     }
 
