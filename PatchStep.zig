@@ -165,8 +165,8 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
         try argv_list.append(b.pathResolve(&.{ patch_path.root_dir.path orelse ".", patch_path.sub_path }));
 
         var child = std.process.Child.init(argv_list.items, b.allocator);
-        child.cwd = b.build_root.path;
-        child.cwd_dir = b.build_root.handle;
+        child.cwd = null;
+        child.cwd_dir = null;
         child.env_map = &b.graph.env_map;
 
         child.stdin_behavior = .Ignore;
