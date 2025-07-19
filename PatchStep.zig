@@ -106,7 +106,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     patch.generated_directory.path = absolute_cache_path;
 
     var cache_dir = b.cache_root.handle.makeOpenPath(cache_path, .{}) catch |err| {
-        return step.fail("unable to make path '{}{s}': {s}", .{
+        return step.fail("unable to make path '{f}{s}': {s}", .{
             b.cache_root, cache_path, @errorName(err),
         });
     };
@@ -121,7 +121,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
         while (try it.next()) |entry| {
             switch (entry.kind) {
                 .directory => cache_dir.makePath(entry.path) catch |err| {
-                    return step.fail("unable to make path '{}{s}{c}{s}': {s}", .{
+                    return step.fail("unable to make path '{f}{s}{c}{s}': {s}", .{
                         b.cache_root, cache_path, fs.path.sep, entry.path, @errorName(err),
                     });
                 },
