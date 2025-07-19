@@ -230,10 +230,12 @@ pub fn build(b: *std.Build) void {
         .strnlen = strnlen,
     });
 
-    const gl = b.addStaticLibrary(.{
+    const gl = b.addLibrary(.{
         .name = "gl",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     gl.linkLibC();
     gl.addConfigHeader(config);
@@ -271,8 +273,10 @@ pub fn build(b: *std.Build) void {
 
     const patch = b.addExecutable(.{
         .name = "patch",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     patch.linkLibC();
     patch.linkLibrary(gl);
