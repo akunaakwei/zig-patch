@@ -5,7 +5,7 @@
     .minimum_zig_version = "0.14.0",
     .dependencies = .{
         .patch = .{
-            .url = "http://mirror.netcologne.de/gnu/patch/patch-2.6.1.tar.gz",
+            .url = "https://ftpmirror.gnu.org/patch/patch-2.6.1.tar.gz",
             .hash = "N-V-__8AAJPSEgDcozcxiSvegfkjtNmn6GcEB8wT_c3xq86P",
         },
     },
