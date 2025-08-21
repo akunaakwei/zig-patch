@@ -112,17 +112,17 @@ pub fn build(b: *std.Build) void {
 
     const patch_dep = b.dependency("patch", .{});
 
-    var flags = std.ArrayList([]const u8).init(b.allocator);
-    defer flags.deinit();
+    var flags: std.ArrayList([]const u8) = .{};
+    defer flags.deinit(b.allocator);
 
-    flags.appendSlice(&.{
+    flags.appendSlice(b.allocator, &.{
         "-Wno-string-plus-int",
         "-Ded_PROGRAM=\"ed\"",
         "-DSAFE_WRITE",
     }) catch @panic("OOM");
 
     if (target.result.os.tag == .windows) {
-        flags.appendSlice(&.{
+        flags.appendSlice(b.allocator, &.{
             "-DO_BINARY=1",
             "-DRENAME_DEST_EXISTS_BUG",
             "-Dchown(path, owner, group)=0",

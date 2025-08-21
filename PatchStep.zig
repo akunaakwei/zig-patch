@@ -32,7 +32,6 @@ pub fn create(b: *std.Build, options: Options) *PatchStep {
         .optimize = options.optimize,
     }).artifact("patch");
     const root_directory = options.root_directory.dupe(b);
-    const patch_files = std.ArrayList(LazyPath).init(b.allocator);
 
     const patch = b.allocator.create(PatchStep) catch @panic("OOM");
     patch.* = .{
@@ -40,7 +39,7 @@ pub fn create(b: *std.Build, options: Options) *PatchStep {
         .patch_exe = patch_exe,
         .root_directory = root_directory,
         .generated_directory = .{ .step = &patch.step },
-        .patch_files = patch_files,
+        .patch_files = .{},
         .strip = options.strip,
     };
     root_directory.addStepDependencies(&patch.step);
@@ -53,7 +52,7 @@ pub fn getDirectory(patch: *PatchStep) LazyPath {
 }
 
 pub fn addPatch(patch: *PatchStep, file: LazyPath) void {
-    patch.patch_files.append(file) catch @panic("OOM");
+    patch.patch_files.append(patch.step.owner.allocator, file) catch @panic("OOM");
 }
 
 fn make(step: *Step, options: Step.MakeOptions) !void {
@@ -145,24 +144,24 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     }
     options.progress_node.increaseEstimatedTotalItems(patch.patch_files.items.len);
     for (patch.patch_files.items) |patch_file| {
-        var argv_list = std.ArrayList([]const u8).init(b.allocator);
-        defer argv_list.deinit();
+        var argv_list: std.ArrayList([]const u8) = .{};
+        defer argv_list.deinit(b.allocator);
 
-        try argv_list.append(exe_path);
-        try argv_list.append("--strip");
-        try argv_list.append(b.fmt("{d}", .{patch.strip}));
-        try argv_list.append("--quiet");
-        try argv_list.append("--no-backup-if-mismatch");
+        try argv_list.append(b.allocator, exe_path);
+        try argv_list.append(b.allocator, "--strip");
+        try argv_list.append(b.allocator, b.fmt("{d}", .{patch.strip}));
+        try argv_list.append(b.allocator, "--quiet");
+        try argv_list.append(b.allocator, "--no-backup-if-mismatch");
         if (patch.patch_exe.rootModuleTarget().os.tag == .windows) {
-            try argv_list.append("--binary");
+            try argv_list.append(b.allocator, "--binary");
         }
-        try argv_list.append("--directory");
-        try argv_list.append(absolute_cache_path);
+        try argv_list.append(b.allocator, "--directory");
+        try argv_list.append(b.allocator, absolute_cache_path);
         var progress_node = options.progress_node.start(b.fmt("patch apply {s}", .{patch_file.getDisplayName()}), 0);
         defer progress_node.end();
         const patch_path = patch_file.getPath3(b, step);
-        try argv_list.append("--input");
-        try argv_list.append(b.pathResolve(&.{ patch_path.root_dir.path orelse ".", patch_path.sub_path }));
+        try argv_list.append(b.allocator, "--input");
+        try argv_list.append(b.allocator, b.pathResolve(&.{ patch_path.root_dir.path orelse ".", patch_path.sub_path }));
 
         var child = std.process.Child.init(argv_list.items, b.allocator);
         child.cwd = null;
