@@ -112,7 +112,7 @@ pub fn build(b: *std.Build) void {
 
     const patch_dep = b.dependency("patch", .{});
 
-    var flags: std.ArrayList([]const u8) = .{};
+    var flags: std.ArrayList([]const u8) = .empty;
     defer flags.deinit(b.allocator);
 
     flags.appendSlice(b.allocator, &.{
@@ -230,17 +230,15 @@ pub fn build(b: *std.Build) void {
         .strnlen = strnlen,
     });
 
-    const gl = b.addLibrary(.{
-        .name = "gl",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-        }),
+    const gl_mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .sanitize_c = .off,
     });
-    gl.linkLibC();
-    gl.addConfigHeader(config);
-    gl.addIncludePath(patch_dep.path(b.pathJoin(&.{ "gl", "lib" })));
-    gl.addCSourceFiles(.{
+    gl_mod.addConfigHeader(config);
+    gl_mod.addIncludePath(patch_dep.path(b.pathJoin(&.{ "gl", "lib" })));
+    gl_mod.addCSourceFiles(.{
         .root = patch_dep.path(b.pathJoin(&.{ "gl", "lib" })),
         .files = &.{
             "argmatch.c",
@@ -269,21 +267,22 @@ pub fn build(b: *std.Build) void {
         },
         .flags = flags.items,
     });
-    gl.root_module.sanitize_c = .off;
-
-    const patch = b.addExecutable(.{
-        .name = "patch",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-        }),
+    const gl = b.addLibrary(.{
+        .name = "gl",
+        .root_module = gl_mod,
     });
-    patch.linkLibC();
-    patch.linkLibrary(gl);
-    patch.addConfigHeader(config);
-    patch.addIncludePath(patch_dep.path(b.pathJoin(&.{ "gl", "lib" })));
-    patch.addIncludePath(patch_dep.path("src"));
-    patch.addCSourceFiles(.{
+
+    const patch_mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+
+    patch_mod.linkLibrary(gl);
+    patch_mod.addConfigHeader(config);
+    patch_mod.addIncludePath(patch_dep.path(b.pathJoin(&.{ "gl", "lib" })));
+    patch_mod.addIncludePath(patch_dep.path("src"));
+    patch_mod.addCSourceFiles(.{
         .root = patch_dep.path("src"),
         .files = &.{
             "inp.c",
@@ -298,5 +297,9 @@ pub fn build(b: *std.Build) void {
         .flags = flags.items,
     });
 
+    const patch = b.addExecutable(.{
+        .name = "patch",
+        .root_module = patch_mod,
+    });
     b.installArtifact(patch);
 }

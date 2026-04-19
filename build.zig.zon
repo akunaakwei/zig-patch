@@ -2,7 +2,7 @@
     .name = .patch,
     .version = "2.6.1",
     .fingerprint = 0xe22b963639638da6,
-    .minimum_zig_version = "0.15.1",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .patch = .{
             .url = "https://ftpmirror.gnu.org/patch/patch-2.6.1.tar.gz",
