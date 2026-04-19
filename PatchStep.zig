@@ -39,7 +39,7 @@ pub fn create(b: *std.Build, options: Options) *PatchStep {
         .patch_exe = patch_exe,
         .root_directory = root_directory,
         .generated_directory = .{ .step = &patch.step },
-        .patch_files = .{},
+        .patch_files = .empty,
         .strip = options.strip,
     };
     root_directory.addStepDependencies(&patch.step);
@@ -63,7 +63,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     const exe_path = b.pathResolve(&.{ exe_cache_path.root_dir.path orelse ".", exe_cache_path.sub_path });
 
     const root_path = patch.root_directory.getPath3(b, step);
-    var root_directory = root_path.openDir(".", .{ .iterate = true }) catch |err| {
+    var root_directory = root_path.openDir(b.graph.io, ".", .{ .iterate = true }) catch |err| {
         const abs_path = root_path.toString(b.allocator) catch @panic("OOM");
         return step.fail("unable to open directory '{s}': {s}", .{
             abs_path, @errorName(err),
@@ -78,7 +78,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     {
         var it = try root_directory.walk(b.allocator);
         defer it.deinit();
-        while (try it.next()) |entry| {
+        while (try it.next(b.graph.io)) |entry| {
             switch (entry.kind) {
                 .file => {
                     const file_path = try root_path.join(b.allocator, entry.path);
@@ -104,12 +104,12 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     const absolute_cache_path = try b.cache_root.join(b.allocator, &.{ "o", &digest });
     patch.generated_directory.path = absolute_cache_path;
 
-    var cache_dir = b.cache_root.handle.makeOpenPath(cache_path, .{}) catch |err| {
+    var cache_dir = b.cache_root.handle.createDirPathOpen(b.graph.io, cache_path, .{}) catch |err| {
         return step.fail("unable to make path '{f}{s}': {s}", .{
             b.cache_root, cache_path, @errorName(err),
         });
     };
-    defer cache_dir.close();
+    defer cache_dir.close(b.graph.io);
 
     // copy everything from root_directory to cache_dir
     {
@@ -117,16 +117,17 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
         defer progress_node.end();
         var it = try root_directory.walk(b.allocator);
         defer it.deinit();
-        while (try it.next()) |entry| {
+        while (try it.next(b.graph.io)) |entry| {
             switch (entry.kind) {
-                .directory => cache_dir.makePath(entry.path) catch |err| {
+                .directory => cache_dir.createDirPath(b.graph.io, entry.path) catch |err| {
                     return step.fail("unable to make path '{f}{s}{c}{s}': {s}", .{
                         b.cache_root, cache_path, fs.path.sep, entry.path, @errorName(err),
                     });
                 },
                 .file => {
-                    const prev_status = std.fs.Dir.updateFile(
+                    const prev_status = std.Io.Dir.updateFile(
                         root_directory,
+                        b.graph.io,
                         entry.path,
                         cache_dir,
                         entry.path,
@@ -144,7 +145,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     }
     options.progress_node.increaseEstimatedTotalItems(patch.patch_files.items.len);
     for (patch.patch_files.items) |patch_file| {
-        var argv_list: std.ArrayList([]const u8) = .{};
+        var argv_list: std.ArrayList([]const u8) = .empty;
         defer argv_list.deinit(b.allocator);
 
         try argv_list.append(b.allocator, exe_path);
@@ -163,21 +164,19 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
         try argv_list.append(b.allocator, "--input");
         try argv_list.append(b.allocator, b.pathResolve(&.{ patch_path.root_dir.path orelse ".", patch_path.sub_path }));
 
-        var child = std.process.Child.init(argv_list.items, b.allocator);
-        child.cwd = null;
-        child.cwd_dir = null;
-        child.env_map = &b.graph.env_map;
-
-        child.stdin_behavior = .Ignore;
-        child.stdout_behavior = .Ignore;
-        child.stderr_behavior = .Ignore;
-
-        child.spawn() catch |err| {
+        var child = std.process.spawn(b.graph.io, .{
+            .argv = argv_list.items,
+            .cwd = .{ .dir = b.build_root.handle },
+            .environ_map = &b.graph.environ_map,
+            .stdin = .ignore,
+            .stdout = .ignore,
+            .stderr = .ignore,
+        }) catch |err| {
             return step.fail("unable to spawn patch process {s}: {s}", .{
                 exe_path, @errorName(err),
             });
         };
-        _ = child.wait() catch |err| {
+        _ = child.wait(b.graph.io) catch |err| {
             return step.fail("patch process failed: {s}", .{@errorName(err)});
         };
         options.progress_node.setCompletedItems(1);
