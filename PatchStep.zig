@@ -60,7 +60,6 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     const patch: *PatchStep = @fieldParentPtr("step", step);
 
     const exe_cache_path = patch.patch_exe.getEmittedBin().getPath3(b, step);
-    const exe_path = b.pathResolve(&.{ exe_cache_path.root_dir.path orelse ".", exe_cache_path.sub_path });
 
     const root_path = patch.root_directory.getPath3(b, step);
     var root_directory = root_path.openDir(b.graph.io, ".", .{ .iterate = true }) catch |err| {
@@ -74,7 +73,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     defer man.deinit();
 
     man.hash.add(@as(u32, 0xEB465BF1));
-    man.hash.addBytes(exe_path);
+    man.hash.addBytes(exe_cache_path.sub_path);
     {
         var it = try root_directory.walk(b.allocator);
         defer it.deinit();
@@ -148,7 +147,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
         var argv_list: std.ArrayList([]const u8) = .empty;
         defer argv_list.deinit(b.allocator);
 
-        try argv_list.append(b.allocator, exe_path);
+        try argv_list.append(b.allocator, exe_cache_path.sub_path);
         try argv_list.append(b.allocator, "--strip");
         try argv_list.append(b.allocator, b.fmt("{d}", .{patch.strip}));
         try argv_list.append(b.allocator, "--quiet");
@@ -166,14 +165,14 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
 
         var child = std.process.spawn(b.graph.io, .{
             .argv = argv_list.items,
-            .cwd = .{ .dir = b.build_root.handle },
+            .cwd = .{ .dir = exe_cache_path.root_dir.handle },
             .environ_map = &b.graph.environ_map,
             .stdin = .ignore,
             .stdout = .ignore,
             .stderr = .ignore,
         }) catch |err| {
-            return step.fail("unable to spawn patch process {s}: {s}", .{
-                exe_path, @errorName(err),
+            return step.fail("unable to spawn patch process {}: {s}", .{
+                exe_cache_path, @errorName(err),
             });
         };
         _ = child.wait(b.graph.io) catch |err| {
